@@ -1,7 +1,8 @@
 from logging import StreamHandler, DEBUG, Formatter, FileHandler, getLogger
 
 import pandas as pd
-from sklearn.svm import SVR
+import numpy as np
+from sklearn.svm import LinearSVR
 
 from load_data import load_train_data, load_test_data
 
@@ -27,8 +28,8 @@ if __name__ == '__main__':
 
     df_train = load_train_data()
     X_train = df_train.drop(['formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
-    y_fe_train = df_train['formation_energy_ev_natom'].values
-    y_bg_train = df_train['bandgap_energy_ev'].values
+    y_fe_train = np.log(1e-8 + df_train['formation_energy_ev_natom'].values)
+    y_bg_train = np.log(1e-8 + df_train['bandgap_energy_ev'].values)
 
     use_cols = X_train.columns.values
 
@@ -36,12 +37,15 @@ if __name__ == '__main__':
 
     logger.info('data preparation end {}'.format(X_train.shape))
 
-    clf_fe = SVR(kernel='linear')
+    C = 1.0
+    max_iter = 100000
+
+    clf_fe = LinearSVR(random_state=0, verbose=1, max_iter=max_iter, C=C)
     clf_fe.fit(X_train, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
 
-    clf_bg = SVR(kernel='linear')
+    clf_bg = LinearSVR(random_state=0, verbose=1, max_iter=max_iter, C=C)
     clf_bg.fit(X_train, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
@@ -55,7 +59,7 @@ if __name__ == '__main__':
     y_bg_pred_test = clf_bg.predict(X_test)
 
     df_submit = pd.read_csv(SAMPLE_SUBMIT_FILE).sort_values('id')
-    df_submit['formation_energy_ev_natom'] = y_fe_pred_test
-    df_submit['bandgap_energy_ev'] = y_bg_pred_test
+    df_submit['formation_energy_ev_natom'] = np.exp(y_fe_pred_test)
+    df_submit['bandgap_energy_ev'] = np.exp(y_bg_pred_test)
 
     df_submit.to_csv(DIR + 'submit.csv', index=False)
