@@ -11,9 +11,16 @@ logger = getLogger(__name__)
 def read_csv(path):
     logger.debug('enter')
     df = pd.read_csv(path)
+
+    logger.debug('OneHotEncode space group')
+    spacegroup = pd.get_dummies(df['spacegroup'].astype('str'), drop_first=True)
+
+    df2 = pd.merge(df, spacegroup, left_index=True, right_index=True)
+    df2.drop('spacegroup', axis=1, inplace=True)
+
     logger.debug('exit')
 
-    return df
+    return df2
 
 
 def load_train_data():
