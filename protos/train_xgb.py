@@ -31,7 +31,7 @@ if __name__ == '__main__':
     logger.info('start')
 
     df_train = load_train_data()
-    X_train = df_train.drop(['formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    X_train = df_train.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
     y_fe_train = np.log1p(df_train['formation_energy_ev_natom'].values)
     y_bg_train = np.log1p(df_train['bandgap_energy_ev'].values)
 
@@ -43,15 +43,16 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'max_depth': [3, 5, 7],
+        'max_depth': [2, 3, 5],
         'learning_rate': [0.1],
-        'min_child_weight': [3, 5, 10],
+        'min_child_weight': [1, 5, 10, 15],
         'n_estimators': [1000],
-        'colsample_bytree': [0.8, 0.9],
-        'colsample_bylevel': [0.8, 0.9],
-        'reg_alpha': [0, 0.1],
-        'max_delta_step': [0.1],
+        'colsample_bytree': [0.7, 0.8, 0.9, 1],
+        'colsample_bylevel': [0.7, 0.8, 0.9, 1],
+        'reg_alpha': [0, 0.01, 0.1],
+        'max_delta_step': [0, 0.1],
         'random_state': [0],
+        'n_jobs': [-1],
     }
     # all_params = {'random_state': [0]}
 
@@ -63,6 +64,7 @@ if __name__ == '__main__':
 
         list_fe_rmse = []
         list_best_iterations = []
+        list_best_ntree_limit = []
         for train_idx, valid_idx in cv.split(X_train, y_fe_train):
             trn_X = X_train.iloc[train_idx, :]
             val_X = X_train.iloc[valid_idx, :]
@@ -71,18 +73,20 @@ if __name__ == '__main__':
             val_y_fe = y_fe_train[valid_idx]
 
             clf_fe = xgb.XGBRegressor(**params)
-            clf_fe.fit(X_train, y_fe_train,
+            clf_fe.fit(trn_X, trn_y_fe,
                        eval_set=[(val_X, val_y_fe)],
-                       early_stopping_rounds=10,
+                       early_stopping_rounds=50,
                        eval_metric='rmse')
             pred = clf_fe.predict(val_X, ntree_limit=clf_fe.best_ntree_limit)
             sc_rmse = np.sqrt(mean_squared_error(val_y_fe, pred))
 
             list_fe_rmse.append(sc_rmse)
             list_best_iterations.append(clf_fe.best_iteration)
+            list_best_ntree_limit.append(clf_fe.best_ntree_limit)
             logger.debug('  RMSE: {}'.format(sc_rmse))
 
         params['n_estimators'] = int(np.mean(list_best_iterations))
+        params['ntree_limit'] = int(np.mean(list_best_ntree_limit))
         sc_rmse = np.mean(list_fe_rmse)
         logger.debug('RMSE: {}'.format(sc_rmse))
         if min_score_fe > sc_rmse:
@@ -105,6 +109,7 @@ if __name__ == '__main__':
 
         list_bg_rmse = []
         list_best_iterations = []
+        list_best_ntree_limit = []
         for train_idx, valid_idx in cv.split(X_train, y_fe_train):
             trn_X = X_train.iloc[train_idx, :]
             val_X = X_train.iloc[valid_idx, :]
@@ -113,28 +118,32 @@ if __name__ == '__main__':
             val_y_bg = y_bg_train[valid_idx]
 
             clf_bg = xgb.XGBRegressor(**params)
-            clf_bg.fit(X_train, y_bg_train,
+            clf_bg.fit(trn_X, trn_y_bg,
                        eval_set=[(val_X, val_y_bg)],
-                       early_stopping_rounds=10,
+                       early_stopping_rounds=50,
                        eval_metric='rmse')
             pred = clf_bg.predict(val_X, ntree_limit=clf_bg.best_ntree_limit)
             sc_rmse = np.sqrt(mean_squared_error(val_y_bg, pred))
 
             list_bg_rmse.append(sc_rmse)
             list_best_iterations.append(clf_bg.best_iteration)
+            list_best_ntree_limit.append(clf_bg.best_ntree_limit)
             logger.debug('  RMSE: {}'.format(sc_rmse))
 
             sc_rmse = np.mean(list_bg_rmse)
 
         params['n_estimators'] = int(np.mean(list_best_iterations))
+        params['ntree_limit'] = int(np.mean(list_best_ntree_limit))
         sc_rmse = np.mean(list_bg_rmse)
         logger.debug('RMSE: {}'.format(sc_rmse))
         if min_score_bg > sc_rmse:
             min_score_bg = sc_rmse
             argmin_params_bg = params
 
-    logger.info('argmin RMSE: {}'.format(argmin_params_bg))
-    logger.info('minimum RMSE: {}'.format(min_score_bg))
+    logger.info('argmin fe RMSE: {}'.format(argmin_params_fe))
+    logger.info('minimum fe RMSE: {}'.format(min_score_fe))
+    logger.info('argmin bg RMSE: {}'.format(argmin_params_bg))
+    logger.info('minimum bg RMSE: {}'.format(min_score_bg))
 
     clf_bg = xgb.XGBRegressor(**argmin_params_bg)
     clf_bg.fit(X_train, y_bg_train)
@@ -142,17 +151,18 @@ if __name__ == '__main__':
     logger.info('bandgap_energy_ev train end')
 
     df_test = load_test_data()
-    X_test = df_test[use_cols].sort_values('id')
+    X_test = df_test.sort_values('id')
+    X_test.drop(['id'], axis=1, inplace=True)
 
     logger.info('test data load end {}'.format(X_test.shape))
 
     logger.info('estimated RMSE: {}'.format((min_score_fe + min_score_bg) / 2))
 
-    y_fe_pred_test = np.expm1(clf_fe.predict(X_test))
-    y_bg_pred_test = np.expm1(clf_bg.predict(X_test))
+    y_fe_pred_test = np.expm1(clf_fe.predict(X_test, ntree_limit=argmin_params_fe['ntree_limit']))
+    y_bg_pred_test = np.expm1(clf_bg.predict(X_test, ntree_limit=argmin_params_bg['ntree_limit']))
 
     df_submit = pd.read_csv(SAMPLE_SUBMIT_FILE).sort_values('id')
-    df_submit['formation_energy_ev_natom'] = y_fe_pred_test
-    df_submit['bandgap_energy_ev'] = y_bg_pred_test
+    df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
+    df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_xgb.csv', index=False)
