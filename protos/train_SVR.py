@@ -42,12 +42,12 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'C': [10 ** i for i in range(-2, 3)],
-        'epsilon': [10 ** i for i in range(-3, 0)],
+        'C': [10 ** i for i in range(-2, 4)],
+        'epsilon': [10 ** i for i in range(-4, 1)],
         'kernel': ['rbf'],
         'gamma': ['auto'],
         'shrinking': [True, False],
-        'tol': [10 ** i for i in range(-5, 0)],
+        'tol': [10 ** i for i in range(-4, 1)],
     }
 
     fe_gs = GridSearchCV(SVR(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)

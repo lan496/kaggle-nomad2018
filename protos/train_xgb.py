@@ -43,18 +43,18 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'max_depth': [2, 3, 5],
+        'max_depth': [1, 2, 3, 4, 5, 6],
         'learning_rate': [0.1],
-        'min_child_weight': [1, 5, 10, 15],
+        'min_child_weight': [8, 10, 12],
         'n_estimators': [1000],
-        'colsample_bytree': [0.7, 0.8, 0.9, 1],
-        'colsample_bylevel': [0.7, 0.8, 0.9, 1],
-        'reg_alpha': [0, 0.01, 0.1],
-        'max_delta_step': [0, 0.1],
+        'colsample_bytree': [0.65, 0.7, 0.75],
+        'colsample_bylevel': [0.65, 0.7, 0.75, 0.8, 0.85],
+        'reg_alpha': [0.01, 0.1, 0.3],
+        'max_delta_step': [0, 0.01],
         'random_state': [0],
         'n_jobs': [-1],
     }
-    # all_params = {'random_state': [0]}
+    all_params = {'random_state': [0]}
 
     min_score_fe = 100
     argmin_params_fe = None

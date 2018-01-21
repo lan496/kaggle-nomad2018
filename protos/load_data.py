@@ -13,10 +13,17 @@ TEST_DATA = '../data/test.csv'
 TRAIN_ADDITIONAL_DATA = '../data/oxygen_arr.train'
 TEST_ADDITIONAL_DATA = '../data/oxygen_arr.test'
 
+TRAIN_CN_DATA = '../data/coo_mat.train'
+TEST_CN_DATA = '../data/coo_mat.test'
+
+TRAIN_BOB_DATA = '../data/bob_df.train'
+TEST_BOB_DATA = '../data/bob_df.test'
+
+
 logger = getLogger(__name__)
 
 
-def read_csv(path, additional_path):
+def read_csv(path, additional_path, CN_path, bob_path):
     logger.debug('enter')
     df = pd.read_csv(path)
 
@@ -46,9 +53,15 @@ def read_csv(path, additional_path):
     df3 = pd.merge(df2, total_atoms, left_index=True, right_index=True)
     df3.drop('number_of_total_atoms', axis=1, inplace=True)
 
-    oxygen_ave = joblib.load(additional_path)
-    df4 = pd.concat([df3, pd.DataFrame(oxygen_ave)], axis=1)
+    df_oxygen_ave = pd.DataFrame(joblib.load(additional_path), columns=['oxygen_density'])
 
+    cols_nonzero = np.all(joblib.load(TRAIN_CN_DATA), axis=0) + np.all(joblib.load(TEST_CN_DATA), axis=0)
+    df_CN = pd.DataFrame(joblib.load(CN_path)[:, ~cols_nonzero])
+
+    df_bob = joblib.load(bob_path)[['bond_Al-O', 'bond_Ga-O']]
+
+    # df4 = pd.concat([df3, df_oxygen_ave, df_CN, df_bob], axis=1)
+    df4 = pd.concat([df3, df_oxygen_ave, df_CN, ], axis=1)
     logger.debug('exit')
 
     return df4
@@ -56,7 +69,7 @@ def read_csv(path, additional_path):
 
 def load_train_data():
     logger.debug('enter')
-    df = read_csv(TRAIN_DATA, TRAIN_ADDITIONAL_DATA)
+    df = read_csv(TRAIN_DATA, TRAIN_ADDITIONAL_DATA, TRAIN_CN_DATA, TRAIN_BOB_DATA)
     logger.debug('exit')
 
     return df
@@ -64,7 +77,7 @@ def load_train_data():
 
 def load_test_data():
     logger.debug('enter')
-    df = read_csv(TEST_DATA, TEST_ADDITIONAL_DATA)
+    df = read_csv(TEST_DATA, TEST_ADDITIONAL_DATA, TEST_CN_DATA, TEST_BOB_DATA)
     logger.debug('exit')
     return df
 

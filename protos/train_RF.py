@@ -2,8 +2,8 @@ from logging import StreamHandler, DEBUG, Formatter, FileHandler, getLogger
 
 import pandas as pd
 import numpy as np
-from sklearn.kernel_ridge import KernelRidge
-from sklearn.model_selection import KFold, ParameterGrid, GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
@@ -42,21 +42,25 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'alpha': [10 ** i for i in range(-4, 0)],
-        'kernel': ['rbf', 'laplacian'],
-        'gamma': [10 ** i for i in range(-4, 0)],
+        'n_estimators': [40, 50, 60, 70, 80, 90],
+        'criterion': ['mse'],
+        'max_features': ['auto'],
+        'max_depth': [7, 9, 11, 13, 15, 17],
+        'min_samples_split': [10 ** i for i in range(-4, 0)],
+        'n_jobs': [-1],
+        'random_state': [0]
     }
 
-    fe_gs = GridSearchCV(KernelRidge(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
+    fe_gs = GridSearchCV(RandomForestRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
     fe_gs.fit(X_train, y_fe_train)
-    clf_fe = KernelRidge(**fe_gs.best_params_)
+    clf_fe = RandomForestRegressor(**fe_gs.best_params_)
     clf_fe.fit(X_train, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
 
-    bg_gs = GridSearchCV(KernelRidge(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
+    bg_gs = GridSearchCV(RandomForestRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
     bg_gs.fit(X_train, y_bg_train)
-    clf_bg = KernelRidge(**bg_gs.best_params_)
+    clf_bg = RandomForestRegressor(**bg_gs.best_params_)
     clf_bg.fit(X_train, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
@@ -82,4 +86,4 @@ if __name__ == '__main__':
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
     df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit_KKR.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_RF.csv', index=False)
