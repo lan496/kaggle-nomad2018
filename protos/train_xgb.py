@@ -43,16 +43,22 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'max_depth': [1, 2, 3, 4, 5, 6],
+        'max_depth': [4, 6],
         'learning_rate': [0.1],
-        'min_child_weight': [8, 10, 12],
+        'min_child_weight': [10, 12],
         'n_estimators': [1000],
-        'colsample_bytree': [0.65, 0.7, 0.75],
-        'colsample_bylevel': [0.65, 0.7, 0.75, 0.8, 0.85],
-        'reg_alpha': [0.01, 0.1, 0.3],
+        'colsample_bytree': [0.6, 0.7],
+        'colsample_bylevel': [0.7, 0.8],
+        'reg_alpha': [0.1],
         'max_delta_step': [0, 0.01],
         'random_state': [0],
         'n_jobs': [-1],
+        'silent': [True],
+        'objective': ['reg:linear'],
+        'booster': ['gbtree', 'dart'],
+        'gamma': [0],
+        'subsample': [1],
+        'reg_lambda': [1],
     }
     all_params = {'random_state': [0]}
 
@@ -76,7 +82,8 @@ if __name__ == '__main__':
             clf_fe.fit(trn_X, trn_y_fe,
                        eval_set=[(val_X, val_y_fe)],
                        early_stopping_rounds=50,
-                       eval_metric='rmse')
+                       eval_metric='rmse',
+                       verbose=False)
             pred = clf_fe.predict(val_X, ntree_limit=clf_fe.best_ntree_limit)
             sc_rmse = np.sqrt(mean_squared_error(val_y_fe, pred))
 
@@ -121,7 +128,8 @@ if __name__ == '__main__':
             clf_bg.fit(trn_X, trn_y_bg,
                        eval_set=[(val_X, val_y_bg)],
                        early_stopping_rounds=50,
-                       eval_metric='rmse')
+                       eval_metric='rmse',
+                       verbose=False)
             pred = clf_bg.predict(val_X, ntree_limit=clf_bg.best_ntree_limit)
             sc_rmse = np.sqrt(mean_squared_error(val_y_bg, pred))
 
