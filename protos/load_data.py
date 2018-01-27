@@ -16,14 +16,14 @@ TEST_ADDITIONAL_DATA = '../data/oxygen_arr.test'
 TRAIN_CN_DATA = '../data/coo_mat.train'
 TEST_CN_DATA = '../data/coo_mat.test'
 
-TRAIN_2NN_DATA = '../data/secondNN_df.train'
-TEST_2NN_DATA = '../data/secondNN_df.test'
+TRAIN_CE_DATA = '../data/total_coulomb_potential.train'
+TEST_CE_DATA = '../data/total_coulomb_potential.test'
 
 
 logger = getLogger(__name__)
 
 
-def read_csv(path, additional_path, CN_path, secondNN_path):
+def read_csv(path, additional_path, CN_path, coulomb_energy_path):
     logger.debug('enter')
     df = pd.read_csv(path)
 
@@ -58,9 +58,11 @@ def read_csv(path, additional_path, CN_path, secondNN_path):
     cols_nonzero = np.all(joblib.load(TRAIN_CN_DATA), axis=0) + np.all(joblib.load(TEST_CN_DATA), axis=0)
     df_CN = pd.DataFrame(joblib.load(CN_path)[:, ~cols_nonzero])
 
-    df_secondNN = joblib.load(secondNN_path).iloc[:, 4:-1]
+    arr_tcp = joblib.load(coulomb_energy_path)
+    df_tcp = pd.DataFrame(arr_tcp, columns=['coulomb_potential_by_atom'])
+    df_tcp['coulomb_potential_by_atom'] /= df['number_of_total_atoms']
 
-    # df4 = pd.concat([df3, df_oxygen_ave, df_CN, df_secondNN], axis=1)
+    # df4 = pd.concat([df3, df_oxygen_ave, df_CN, df_tcp], axis=1)
     df4 = pd.concat([df3, df_oxygen_ave, df_CN, ], axis=1)
     logger.debug('exit')
 
@@ -69,7 +71,7 @@ def read_csv(path, additional_path, CN_path, secondNN_path):
 
 def load_train_data():
     logger.debug('enter')
-    df = read_csv(TRAIN_DATA, TRAIN_ADDITIONAL_DATA, TRAIN_CN_DATA, TRAIN_2NN_DATA)
+    df = read_csv(TRAIN_DATA, TRAIN_ADDITIONAL_DATA, TRAIN_CN_DATA, TRAIN_CE_DATA)
 
     # https://www.kaggle.com/c/nomad2018-predict-transparent-conductors/discussion/47998
     duplicate_index = np.array([395, 126, 1215, 1886, 2075, 353, 308, 2154, 531, 1379, 2319, 2337, 2370, 2333])
@@ -83,7 +85,7 @@ def load_train_data():
 
 def load_test_data():
     logger.debug('enter')
-    df = read_csv(TEST_DATA, TEST_ADDITIONAL_DATA, TEST_CN_DATA, TEST_2NN_DATA)
+    df = read_csv(TEST_DATA, TEST_ADDITIONAL_DATA, TEST_CN_DATA, TEST_CE_DATA)
     logger.debug('exit')
     return df
 
