@@ -21,7 +21,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train_SVR.py.log', 'a')
+    handler = FileHandler(DIR + 'train.KRR.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)

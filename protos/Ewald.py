@@ -34,8 +34,6 @@ class EwaldSummationMatrix(object):
         else:
             self._gmax = 2. * self._sqrt_eta * self._accf
 
-        print(self._rmax, self._gmax)
-
         # precomute
         self._oxi_states = [specie.common_oxidation_states[0] for specie in structure.species]
         self._coords = np.array(self._s.cart_coords)

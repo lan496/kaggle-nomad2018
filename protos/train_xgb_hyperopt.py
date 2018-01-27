@@ -24,7 +24,7 @@ def loss(params, X_train, y_train, cv, early_stopping_rounds=50):
     list_best_iterations = []
     list_best_ntree_limit = []
 
-    for train_idx, valid_idx in cv.split(X_train, y_fe_train):
+    for train_idx, valid_idx in cv.split(X_train, y_train):
         trn_X = X_train.iloc[train_idx, :]
         val_X = X_train.iloc[valid_idx, :]
 

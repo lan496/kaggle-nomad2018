@@ -42,6 +42,7 @@ if __name__ == '__main__':
     logger.info('data preparation end {}'.format(X_train.shape))
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
+    """
     all_params = {
         'max_depth': [4, 6],
         'learning_rate': [0.1],
@@ -60,8 +61,25 @@ if __name__ == '__main__':
         'subsample': [1],
         'reg_lambda': [1],
     }
-    all_params = {'random_state': [0]}
-
+    """
+    # all_params = {'random_state': [0]}
+    all_params = {
+        'max_depth': [2],
+        'learning_rate': [0.1],
+        'min_child_weight': [3],
+        'n_estimators': [1000],
+        'colsample_bytree': [0.8],
+        'colsample_bylevel': [1.0],
+        'reg_alpha': [0.1],
+        'random_state': [0],
+        'n_jobs': [-1],
+        'silent': [True],
+        'objective': ['reg:linear'],
+        'booster': ['dart'],
+        'gamma': [0],
+        'subsample': [0.7],
+        'reg_lambda': [0.1],
+    }
     min_score_fe = 100
     argmin_params_fe = None
 
