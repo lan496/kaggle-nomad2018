@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import KFold, ParameterGrid
 from sklearn.metrics import mean_squared_log_error, mean_squared_error
-import xgboost as xgb
+from catboost import CatBoostRegressor
 from tqdm import tqdm
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
 
@@ -17,12 +17,10 @@ DIR = 'result_tmp/'
 SAMPLE_SUBMIT_FILE = '../data/sample_submission.csv'
 
 
-def loss(params, X_train, y_train, cv, early_stopping_rounds=50):
-    logger.debug('params: {}'.format(params))
+def loss(params, X_train, y_train, cv):
 
     list_loss = []
     list_best_iterations = []
-    list_best_ntree_limit = []
 
     for train_idx, valid_idx in cv.split(X_train, y_train):
         trn_X = X_train.iloc[train_idx, :]
@@ -31,24 +29,21 @@ def loss(params, X_train, y_train, cv, early_stopping_rounds=50):
         trn_y = y_train[train_idx]
         val_y = y_train[valid_idx]
 
-        model = xgb.XGBRegressor(**params)
+        model = CatBoostRegressor(**params)
         model.fit(trn_X, trn_y,
-                  eval_set=[(val_X, val_y)],
-                  early_stopping_rounds=early_stopping_rounds,
-                  eval_metric='rmse',
-                  verbose=False)
-        pred = model.predict(val_X, ntree_limit=model.best_ntree_limit)
+                  eval_set=(val_X, val_y),
+                  use_best_model=True)
+        pred = model.predict(val_X)
         loss = np.sqrt(mean_squared_error(val_y, pred))
 
         list_loss.append(loss)
-        list_best_iterations.append(model.best_iteration)
-        list_best_ntree_limit.append(model.best_ntree_limit)
+        list_best_iterations.append(model.tree_count_)
         logger.debug('  RMSE: {}'.format(loss))
 
-    params['n_estimators'] = int(np.mean(list_best_iterations))
-    params['ntree_limit'] = int(np.mean(list_best_ntree_limit))
+    params['iterations'] = int(np.mean(list_best_iterations))
     loss = np.mean(list_loss)
 
+    logger.debug('params: {}'.format(params))
     logger.debug('RMSE: {}'.format(loss))
 
     return {'loss': loss, 'status': STATUS_OK}
@@ -61,7 +56,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train.py.log', 'a')
+    handler = FileHandler(DIR + 'train_catboost_hyperopt.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)
@@ -82,34 +77,30 @@ if __name__ == '__main__':
 
     space = {
         # Control complexity of model
-        'max_depth': hp.choice('max_depth', np.arange(1, 11, dtype=int)),
-        'learning_rate': 0.1,
-        'min_child_weight': hp.choice('min_child_weight', np.arange(1, 11, dtype=int)),
-        'gamma': hp.quniform('gamma', 0, 1, 0.1),
+        'depth': hp.choice('depth', np.arange(1, 11, dtype=int)),
+        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
 
         # Improve noise robustness
-        'subsample': hp.quniform('subsample', 0.5, 1, 0.1),
-        'colsample_bytree': hp.quniform('colsample_bytree', 0.5, 1, 0.1),
-        'colsample_bylevel': hp.quniform('colsample_bylevel', 0.5, 1, 0.1),
-        'reg_alpha': hp.quniform('reg_alpha', 0, 1, 0.1),
-        'reg_lambda': hp.quniform('reg_lambda', 0, 1, 0.1),
-
-        # booster
-        'booster': 'dart',
+        'l2_leaf_reg': hp.quniform('l2_leaf_reg', 0, 1.0, 0.1),
+        # 'bootstrap_type': hp.choice('bootstrap_type', ['Bayesian', 'Bernoulli', 'No']),
+        # 'bagging_temperature': hp.quniform('bagging_temperature', 0, 1., 0.1),
+        # 'subsample': hp.quniform('subsample', 0.5, 1., 0.1),
 
         # fixed
-        'n_estimators': 1000,
-        'n_jobs': -1,
-        'silent': True,
-        'random_state': 0,
-        'objective': 'reg:linear',
+        'iterations': 50000,
+        'eval_metric': 'RMSE',
+        'loss_function': 'RMSE',
+        'od_wait': 50,
+        'thread_count': 8,
+        'logging_level': 'Silent',
+        'random_seed': 0,
+        'od_type': 'Iter'
     }
 
-    max_evals = 300
-    early_stopping_rounds = 50
+    max_evals = 100
 
     trials_fe = Trials()
-    loss_fe = partial(loss, X_train=X_train, y_train=y_fe_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
+    loss_fe = partial(loss, X_train=X_train, y_train=y_fe_train, cv=cv)
     best_fe = fmin(loss_fe, space, algo=tpe.suggest, trials=trials_fe, max_evals=max_evals)
     best_params_fe = space_eval(space, best_fe)
     best_loss_fe = loss_fe(best_params_fe)['loss']
@@ -117,13 +108,13 @@ if __name__ == '__main__':
     logger.info('argmin RMSE: {}'.format(best_fe))
     logger.info('minimum RMSE: {}'.format(best_loss_fe))
 
-    model_fe = xgb.XGBRegressor(**best_params_fe)
+    model_fe = CatBoostRegressor(**best_params_fe)
     model_fe.fit(X_train, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
 
     trials_bg = Trials()
-    loss_bg = partial(loss, X_train=X_train, y_train=y_bg_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
+    loss_bg = partial(loss, X_train=X_train, y_train=y_bg_train, cv=cv)
     best_bg = fmin(loss_bg, space, algo=tpe.suggest, trials=trials_bg, max_evals=max_evals)
     best_params_bg = space_eval(space, best_bg)
     best_loss_bg = loss_bg(best_params_bg)['loss']
@@ -131,7 +122,7 @@ if __name__ == '__main__':
     logger.info('argmin RMSE: {}'.format(best_bg))
     logger.info('minimum RMSE: {}'.format(best_loss_bg))
 
-    model_bg = xgb.XGBRegressor(**best_params_bg)
+    model_bg = CatBoostRegressor(**best_params_bg)
     model_bg.fit(X_train, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
@@ -144,11 +135,11 @@ if __name__ == '__main__':
 
     logger.info('estimated RMSE: {}'.format((best_loss_fe + best_loss_bg) / 2))
 
-    y_fe_pred_test = np.expm1(model_fe.predict(X_test, ntree_limit=best_params_fe['ntree_limit']))
-    y_bg_pred_test = np.expm1(model_bg.predict(X_test, ntree_limit=best_params_bg['ntree_limit']))
+    y_fe_pred_test = np.expm1(model_fe.predict(X_test))
+    y_bg_pred_test = np.expm1(model_bg.predict(X_test))
 
     df_submit = pd.read_csv(SAMPLE_SUBMIT_FILE).sort_values('id')
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
     df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit_xgb_hyperopt.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_catboost_hyperopt.csv', index=False)

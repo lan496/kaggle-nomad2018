@@ -83,7 +83,6 @@ def run(all_params, generalizers, X_train, y_train, X_test, n_splits=5):
 
         list_loss = []
         list_best_iterations = []
-        list_bets_ntree_limit = []
 
         for train_idx, valid_idx in cv.split(X_meta_train, y_train):
             trn_X = X_meta_train[train_idx, :]
@@ -92,22 +91,18 @@ def run(all_params, generalizers, X_train, y_train, X_test, n_splits=5):
             trn_y = y_train[train_idx]
             val_y = y_train[valid_idx]
 
-            model = xgb.XGBRegressor(**params)
+            model = CatBoostRegressor(**params)
             model.fit(trn_X, trn_y,
-                      eval_set=[(val_X, val_y)],
-                      early_stopping_rounds=50,
-                      eval_metric='rmse',
-                      verbose=False)
-            pred = model.predict(val_X, ntree_limit=model.best_ntree_limit)
+                      eval_set=(val_X, val_y),
+                      use_best_model=True)
+            pred = model.predict(val_X)
             loss_rmse = np.sqrt(mean_squared_error(val_y, pred))
 
             list_loss.append(loss_rmse)
-            list_best_iterations.append(model.best_iteration)
-            list_bets_ntree_limit.append(model.best_ntree_limit)
+            list_best_iterations.append(model.tree_count_)
             logger.debug('  RMSE: {}'.format(loss_rmse))
 
-        params['n_estimators'] = int(np.mean(list_best_iterations))
-        params['ntree_limit'] = int(np.mean(list_bets_ntree_limit))
+        params['iterations'] = int(np.mean(list_best_iterations))
         loss_rmse = np.mean(list_loss)
         logger.debug('RMSE: {}'.format(loss_rmse))
         if min_loss > loss_rmse:
@@ -117,10 +112,10 @@ def run(all_params, generalizers, X_train, y_train, X_test, n_splits=5):
     logger.info('argmin RMSE: {}'.format(argmin_loss))
     logger.info('minimum RMSE: {}'.format(min_loss))
 
-    model = xgb.XGBRegressor(**argmin_loss)
+    model = CatBoostRegressor(**argmin_loss)
     model.fit(X_train, y_train)
 
-    pred = model.predict(X_test, ntree_limit=argmin_loss['ntree_limit'])
+    pred = model.predict(X_test)
 
     return pred, min_loss, argmin_loss
 
@@ -158,22 +153,17 @@ if __name__ == '__main__':
     logger.info('test data load end {}'.format(X_test.shape))
 
     all_params = {
-        'max_depth': [4, 6],
+        'iterations': [50000],
+        'eval_metric': ['RMSE'],
+        'loss_function': ['RMSE'],
+        'random_seed': [0],
+        'thread_count': [8],
+        'logging_level': ['Silent'],
+        'od_type': ['Iter'],
+        'od_wait': [50],
         'learning_rate': [0.1],
-        'min_child_weight': [10, 12],
-        'n_estimators': [1000],
-        'colsample_bytree': [0.6, 0.7],
-        'colsample_bylevel': [0.7, 0.8],
-        'reg_alpha': [0.1],
-        'max_delta_step': [0, 0.01],
-        'random_state': [0],
-        'n_jobs': [-1],
-        'silent': [True],
-        'objective': ['reg:linear'],
-        'booster': ['gbtree', 'dart'],
-        'gamma': [0],
-        'subsample': [1],
-        'reg_lambda': [1],
+        'depth': [2, 4, 6, 8, 10],
+        'l2_leaf_reg': [0, 0.01, 0.1, 1.0],
     }
 
     generalizers_fe = [
@@ -200,11 +190,11 @@ if __name__ == '__main__':
                          n_jobs=-1,
                          random_state=0,
                          objective='reg:linear'),
-        CatBoostRegressor(depth=6,
+        CatBoostRegressor(depth=9,
                           eval_metric='RMSE',
                           iterations=284,
-                          l2_leaf_reg=0.1,
-                          learning_rate=0.1,
+                          l2_leaf_reg=0.9,
+                          learning_rate=0.06,
                           logging_level='Silent',
                           loss_function='RMSE',
                           od_type='Iter',
@@ -240,8 +230,8 @@ if __name__ == '__main__':
         CatBoostRegressor(depth=4,
                           eval_metric='RMSE',
                           iterations=186,
-                          l2_leaf_reg=0.1,
-                          learning_rate=0.1,
+                          l2_leaf_reg=0.3,
+                          learning_rate=0.06,
                           logging_level='Silent',
                           loss_function='RMSE',
                           od_type='Iter',
