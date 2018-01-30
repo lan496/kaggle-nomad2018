@@ -31,7 +31,7 @@ if __name__ == '__main__':
     logger.info('start')
 
     df_train_fe = load_train_data(is_bg=False)
-    df_train_bg = load_train_data(is_bg=False)
+    df_train_bg = load_train_data(is_bg=True)
     X_train_fe = df_train_fe.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
     X_train_bg = df_train_bg.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
     y_fe_train = np.log1p(df_train_fe['formation_energy_ev_natom'].values)
@@ -100,9 +100,6 @@ if __name__ == '__main__':
             min_score_fe = sc_rmse
             argmin_params_fe = params
 
-    logger.info('argmin RMSE: {}'.format(argmin_params_fe))
-    logger.info('minimum RMSE: {}'.format(min_score_fe))
-
     clf_fe = xgb.XGBRegressor(**argmin_params_fe)
     clf_fe.fit(X_train_fe, y_fe_train)
 
@@ -159,7 +156,7 @@ if __name__ == '__main__':
     logger.info('bandgap_energy_ev train end')
 
     df_test_fe = load_test_data(is_bg=False)
-    df_test_bg = load_test_data(is_bg=False)
+    df_test_bg = load_test_data(is_bg=True)
     X_test_fe = df_test_fe.sort_values('id')
     X_test_bg = df_test_bg.sort_values('id')
     X_test_fe.drop(['id'], axis=1, inplace=True)

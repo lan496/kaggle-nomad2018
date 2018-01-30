@@ -22,10 +22,19 @@ TEST_ANGLE_DATA = '../data/ha_df_20.test'
 TRAIN_TRI_DATA = '../data/tri_df.train'
 TEST_TRI_DATA = '../data/tri_df.test'
 
+TRAIN_TOTAL_DATA = '../data/total_df.train'
+TEST_TOTAL_DATA = '../data/total_df.test'
+
+TRAIN_EHIST_DATA = '../data/ehist_df_20.train'
+TEST_EHIST_DATA = '../data/ehist_df_20.test'
+
+TRAIN_COULOMB_DATA = '../data/CM_mat.train'
+TEST_COULOMB_DATA = '../data/CM_mat.test'
+
 logger = getLogger(__name__)
 
 
-def read_csv(path, additional_path, CN_path, angle_path, tri_path, is_bg=False):
+def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, ehist_path, coulomb_path, is_bg=False):
     logger.debug('enter')
     df = pd.read_csv(path)
 
@@ -57,16 +66,21 @@ def read_csv(path, additional_path, CN_path, angle_path, tri_path, is_bg=False):
     df_CN = pd.DataFrame(joblib.load(CN_path)[:, ~cols_nonzero])
 
     df_angle = joblib.load(angle_path)
-    df_angle.divide(df['number_of_total_atoms'], axis=0)
+    df_angle = df_angle.divide(df['number_of_total_atoms'], axis=0)
 
     df_tri = joblib.load(tri_path)
-    df_tri.divide(df['number_of_total_atoms'], axis=0)
+    df_tri = df_tri.divide(df['number_of_total_atoms'], axis=0)
 
+    df_total = joblib.load(total_path)
+    df_total = df_total.divide(df['number_of_total_atoms'], axis=0)
+
+    df_ehist = joblib.load(ehist_path)
+
+    common_dataframs = [df, spacegroup, total_atoms, df_oxygen_ave, df_CN, df_angle, ]
     if is_bg:
-        df2 = pd.concat([df, spacegroup, total_atoms, df_oxygen_ave, df_CN, df_angle, df_tri], axis=1)
+        df2 = pd.concat([*common_dataframs, df_tri, df_ehist], axis=1)
     else:
-        # df2 = pd.concat([df, spacegroup, total_atoms, df_oxygen_ave, df_CN, df_angle], axis=1)
-        df2 = pd.concat([df, spacegroup, total_atoms, df_oxygen_ave, df_CN, df_tri], axis=1)
+        df2 = pd.concat([*common_dataframs], axis=1)
 
     df2.drop(['spacegroup', 'number_of_total_atoms'], axis=1, inplace=True)
     logger.debug('exit')
@@ -76,7 +90,15 @@ def read_csv(path, additional_path, CN_path, angle_path, tri_path, is_bg=False):
 
 def load_train_data(is_bg=False):
     logger.debug('enter')
-    df = read_csv(TRAIN_DATA, TRAIN_ADDITIONAL_DATA, TRAIN_CN_DATA, TRAIN_ANGLE_DATA, TEST_TRI_DATA, is_bg)
+    df = read_csv(TRAIN_DATA,
+                  TRAIN_ADDITIONAL_DATA,
+                  TRAIN_CN_DATA,
+                  TRAIN_ANGLE_DATA,
+                  TRAIN_TRI_DATA,
+                  TRAIN_TOTAL_DATA,
+                  TRAIN_EHIST_DATA,
+                  TRAIN_COULOMB_DATA,
+                  is_bg)
 
     # https://www.kaggle.com/c/nomad2018-predict-transparent-conductors/discussion/47998
     duplicate_index = np.array([395, 126, 1215, 1886, 2075, 353, 308, 2154, 531, 1379, 2319, 2337, 2370, 2333])
@@ -90,7 +112,15 @@ def load_train_data(is_bg=False):
 
 def load_test_data(is_bg=False):
     logger.debug('enter')
-    df = read_csv(TEST_DATA, TEST_ADDITIONAL_DATA, TEST_CN_DATA, TEST_ANGLE_DATA, TEST_TRI_DATA, is_bg)
+    df = read_csv(TEST_DATA,
+                  TEST_ADDITIONAL_DATA,
+                  TEST_CN_DATA,
+                  TEST_ANGLE_DATA,
+                  TEST_TRI_DATA,
+                  TEST_TOTAL_DATA,
+                  TEST_EHIST_DATA,
+                  TEST_COULOMB_DATA,
+                  is_bg)
     logger.debug('exit')
     return df
 
