@@ -97,7 +97,7 @@ if __name__ == '__main__':
         'od_type': 'Iter'
     }
 
-    max_evals = 100
+    max_evals = 200
 
     trials_fe = Trials()
     loss_fe = partial(loss, X_train=X_train, y_train=y_fe_train, cv=cv)

@@ -69,21 +69,21 @@ if __name__ == '__main__':
 
     logger.info('start')
 
-    df_train = load_train_data()
-    X_train = df_train.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
-    y_fe_train = np.log1p(df_train['formation_energy_ev_natom'].values)
-    y_bg_train = np.log1p(df_train['bandgap_energy_ev'].values)
+    df_train_fe = load_train_data()
+    df_train_bg = load_train_data()
+    X_train_fe = df_train_fe.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    X_train_bg = df_train_bg.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    y_fe_train = np.log1p(df_train_fe['formation_energy_ev_natom'].values)
+    y_bg_train = np.log1p(df_train_bg['bandgap_energy_ev'].values)
 
-    use_cols = X_train.columns.values
-    logger.debug('train columns: {} {}'.format(use_cols.shape, use_cols))
-    logger.info('data preparation end {}'.format(X_train.shape))
+    logger.info('data preparation end {}'.format(X_train_fe.shape))
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
 
     space = {
         # Control complexity of model
         'max_depth': hp.choice('max_depth', np.arange(1, 11, dtype=int)),
-        'learning_rate': 0.1,
+        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
         'min_child_weight': hp.choice('min_child_weight', np.arange(1, 11, dtype=int)),
         'gamma': hp.quniform('gamma', 0, 1, 0.1),
 
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     early_stopping_rounds = 50
 
     trials_fe = Trials()
-    loss_fe = partial(loss, X_train=X_train, y_train=y_fe_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
+    loss_fe = partial(loss, X_train=X_train_fe, y_train=y_fe_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
     best_fe = fmin(loss_fe, space, algo=tpe.suggest, trials=trials_fe, max_evals=max_evals)
     best_params_fe = space_eval(space, best_fe)
     best_loss_fe = loss_fe(best_params_fe)['loss']
@@ -118,12 +118,12 @@ if __name__ == '__main__':
     logger.info('minimum RMSE: {}'.format(best_loss_fe))
 
     model_fe = xgb.XGBRegressor(**best_params_fe)
-    model_fe.fit(X_train, y_fe_train)
+    model_fe.fit(X_train_fe, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
 
     trials_bg = Trials()
-    loss_bg = partial(loss, X_train=X_train, y_train=y_bg_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
+    loss_bg = partial(loss, X_train=X_train_bg, y_train=y_bg_train, cv=cv, early_stopping_rounds=early_stopping_rounds)
     best_bg = fmin(loss_bg, space, algo=tpe.suggest, trials=trials_bg, max_evals=max_evals)
     best_params_bg = space_eval(space, best_bg)
     best_loss_bg = loss_bg(best_params_bg)['loss']
@@ -132,20 +132,23 @@ if __name__ == '__main__':
     logger.info('minimum RMSE: {}'.format(best_loss_bg))
 
     model_bg = xgb.XGBRegressor(**best_params_bg)
-    model_bg.fit(X_train, y_bg_train)
+    model_bg.fit(X_train_bg, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
 
-    df_test = load_test_data()
-    X_test = df_test.sort_values('id')
-    X_test.drop(['id'], axis=1, inplace=True)
+    df_test_fe = load_test_data()
+    df_test_bg = load_test_data()
+    X_test_fe = df_test_fe.sort_values('id')
+    X_test_bg = df_test_bg.sort_values('id')
+    X_test_fe.drop(['id'], axis=1, inplace=True)
+    X_test_bg.drop(['id'], axis=1, inplace=True)
 
-    logger.info('test data load end {}'.format(X_test.shape))
+    logger.info('test data load end {}'.format(X_test_fe.shape))
 
     logger.info('estimated RMSE: {}'.format((best_loss_fe + best_loss_bg) / 2))
 
-    y_fe_pred_test = np.expm1(model_fe.predict(X_test, ntree_limit=best_params_fe['ntree_limit']))
-    y_bg_pred_test = np.expm1(model_bg.predict(X_test, ntree_limit=best_params_bg['ntree_limit']))
+    y_fe_pred_test = np.expm1(model_fe.predict(X_test_fe, ntree_limit=best_params_fe['ntree_limit']))
+    y_bg_pred_test = np.expm1(model_bg.predict(X_test_bg, ntree_limit=best_params_bg['ntree_limit']))
 
     df_submit = pd.read_csv(SAMPLE_SUBMIT_FILE).sort_values('id')
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
