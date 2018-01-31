@@ -69,8 +69,8 @@ if __name__ == '__main__':
 
     logger.info('start')
 
-    df_train_fe = load_train_data()
-    df_train_bg = load_train_data()
+    df_train_fe = load_train_data(is_bg=False)
+    df_train_bg = load_train_data(is_bg=True)
     X_train_fe = df_train_fe.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
     X_train_bg = df_train_bg.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
     y_fe_train = np.log1p(df_train_fe['formation_energy_ev_natom'].values)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         'objective': 'reg:linear',
     }
 
-    max_evals = 300
+    max_evals = 400
     early_stopping_rounds = 50
 
     trials_fe = Trials()
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     best_params_fe = space_eval(space, best_fe)
     best_loss_fe = loss_fe(best_params_fe)['loss']
 
-    logger.info('argmin RMSE: {}'.format(best_fe))
+    logger.info('argmin RMSE: {}'.format(best_params_fe))
     logger.info('minimum RMSE: {}'.format(best_loss_fe))
 
     model_fe = xgb.XGBRegressor(**best_params_fe)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     best_params_bg = space_eval(space, best_bg)
     best_loss_bg = loss_bg(best_params_bg)['loss']
 
-    logger.info('argmin RMSE: {}'.format(best_bg))
+    logger.info('argmin RMSE: {}'.format(best_params_bg))
     logger.info('minimum RMSE: {}'.format(best_loss_bg))
 
     model_bg = xgb.XGBRegressor(**best_params_bg)
@@ -136,8 +136,8 @@ if __name__ == '__main__':
 
     logger.info('bandgap_energy_ev train end')
 
-    df_test_fe = load_test_data()
-    df_test_bg = load_test_data()
+    df_test_fe = load_test_data(is_bg=False)
+    df_test_bg = load_test_data(is_bg=True)
     X_test_fe = df_test_fe.sort_values('id')
     X_test_bg = df_test_bg.sort_values('id')
     X_test_fe.drop(['id'], axis=1, inplace=True)

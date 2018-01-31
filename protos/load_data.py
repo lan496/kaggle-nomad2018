@@ -28,13 +28,18 @@ TEST_TOTAL_DATA = '../data/total_df.test'
 TRAIN_EHIST_DATA = '../data/ehist_df_20.train'
 TEST_EHIST_DATA = '../data/ehist_df_20.test'
 
-TRAIN_COULOMB_DATA = '../data/CM_mat.train'
-TEST_COULOMB_DATA = '../data/CM_mat.test'
+TRAIN_FINGER_DATA = '../data/fp_df.train'
+TEST_FINGER_DATA = '../data/fp_df.test'
+
+TRAIN_MOMENT_DATA = '../data/fp_moment_df.train'
+TEST_MOMENT_DATA = '../data/fp_moment_df.test'
+
 
 logger = getLogger(__name__)
 
 
-def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, ehist_path, coulomb_path, is_bg=False):
+def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, ehist_path,
+             finger_path, moment_path, is_bg=False):
     logger.debug('enter')
     df = pd.read_csv(path)
 
@@ -76,11 +81,15 @@ def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, e
 
     df_ehist = joblib.load(ehist_path)
 
+    df_fp = joblib.load(finger_path)
+
+    df_moment = joblib.load(moment_path)
+
     common_dataframs = [df, spacegroup, total_atoms, df_oxygen_ave, df_CN, df_angle, ]
     if is_bg:
         df2 = pd.concat([*common_dataframs, df_tri, df_ehist], axis=1)
     else:
-        df2 = pd.concat([*common_dataframs], axis=1)
+        df2 = pd.concat([*common_dataframs, df_fp, df_moment], axis=1)
 
     df2.drop(['spacegroup', 'number_of_total_atoms'], axis=1, inplace=True)
     logger.debug('exit')
@@ -97,7 +106,8 @@ def load_train_data(is_bg=False):
                   TRAIN_TRI_DATA,
                   TRAIN_TOTAL_DATA,
                   TRAIN_EHIST_DATA,
-                  TRAIN_COULOMB_DATA,
+                  TRAIN_FINGER_DATA,
+                  TRAIN_MOMENT_DATA,
                   is_bg)
 
     # https://www.kaggle.com/c/nomad2018-predict-transparent-conductors/discussion/47998
@@ -119,7 +129,8 @@ def load_test_data(is_bg=False):
                   TEST_TRI_DATA,
                   TEST_TOTAL_DATA,
                   TEST_EHIST_DATA,
-                  TEST_COULOMB_DATA,
+                  TEST_FINGER_DATA,
+                  TEST_MOMENT_DATA,
                   is_bg)
     logger.debug('exit')
     return df

@@ -80,22 +80,23 @@ if __name__ == '__main__':
 
     logger.info('start')
 
-    df_train = load_train_data(onehot=True)
-    X_train = df_train.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
-    y_fe_train = np.log1p(df_train['formation_energy_ev_natom'].values)
-    y_bg_train = np.log1p(df_train['bandgap_energy_ev'].values)
+    df_train_fe = load_train_data()
+    df_train_bg = load_train_data(is_bg=True)
+    X_train_fe = df_train_fe.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    X_train_bg = df_train_bg.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    y_fe_train = np.log1p(df_train_fe['formation_energy_ev_natom'].values)
+    y_bg_train = np.log1p(df_train_bg['bandgap_energy_ev'].values)
 
-    use_cols = X_train.columns.values
+    logger.info('data preparation end {}'.format(X_train_fe.shape))
 
-    logger.debug('train columns: {} {}'.format(use_cols.shape, use_cols))
+    df_test_fe = load_test_data()
+    df_test_bg = load_test_data(is_bg=True)
+    X_test_fe = df_test_fe.sort_values('id')
+    X_test_bg = df_test_bg.sort_values('id')
+    X_test_fe.drop(['id'], axis=1, inplace=True)
+    X_test_bg.drop(['id'], axis=1, inplace=True)
 
-    logger.info('data preparation end {}'.format(X_train.shape))
-
-    df_test = load_test_data(onehot=True)
-    X_test = df_test.sort_values('id')
-    X_test.drop(['id'], axis=1, inplace=True)
-
-    logger.info('test data load end {}'.format(X_test.shape))
+    logger.info('test data load end {}'.format(X_test_fe.shape))
 
     all_params = {
         # core paramters
@@ -113,12 +114,13 @@ if __name__ == '__main__':
         'learning_rate': [0.01, 0.1],
         'boosting_type': ['gbdt', 'dart'],
     }
+    all_params = {'random_state': [0]}
 
-    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, X_train, y_fe_train, X_test, n_splits=5)
+    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, X_train_fe, y_fe_train, X_test_fe, n_splits=5)
 
     logger.info('formation_energy_ev_natom end')
 
-    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(all_params, X_train, y_bg_train, X_test, n_splits=5)
+    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(all_params, X_train_bg, y_bg_train, X_test_bg, n_splits=5)
 
     logger.info('bandgap_energy_ev end')
 

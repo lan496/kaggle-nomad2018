@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import KFold, ParameterGrid
 from sklearn.metrics import mean_squared_log_error, mean_squared_error
-from catboost import CatBoostRegressor
+import lightgbm as lgb
 from tqdm import tqdm
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
 
@@ -18,7 +18,6 @@ SAMPLE_SUBMIT_FILE = '../data/sample_submission.csv'
 
 
 def loss(params, X_train, y_train, cv):
-
     list_loss = []
     list_best_iterations = []
 
@@ -29,18 +28,20 @@ def loss(params, X_train, y_train, cv):
         trn_y = y_train[train_idx]
         val_y = y_train[valid_idx]
 
-        model = CatBoostRegressor(**params)
+        model = lgb.LGBMRegressor(**params)
         model.fit(trn_X, trn_y,
-                  eval_set=(val_X, val_y),
-                  use_best_model=True)
-        pred = model.predict(val_X)
+                  eval_set=[(val_X, val_y)],
+                  eval_metric='l2',
+                  early_stopping_rounds=10,
+                  verbose=False)
+        pred = model.predict(val_X, num_iteration=model.best_iteration_)
         loss = np.sqrt(mean_squared_error(val_y, pred))
 
         list_loss.append(loss)
-        list_best_iterations.append(model.tree_count_)
+        list_best_iterations.append(model.best_iteration_)
         logger.debug('  RMSE: {}'.format(loss))
 
-    params['iterations'] = int(np.mean(list_best_iterations))
+    params['n_estimators'] = int(np.mean(list_best_iterations))
     loss = np.mean(list_loss)
 
     logger.debug('params: {}'.format(params))
@@ -56,7 +57,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train_catboost_hyperopt.py.log', 'a')
+    handler = FileHandler(DIR + 'train_lightgbm_hyperopt.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)
@@ -76,25 +77,28 @@ if __name__ == '__main__':
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
 
     space = {
-        # Control complexity of model
-        'depth': hp.choice('depth', np.arange(1, 11, dtype=int)),
-        'learning_rate': 0.1,
+        # controling complexity parameters
+        'max_depth': hp.choice('max_depth', np.arange(2, 11)),
+        'num_leaves': hp.choice('num_leaves', np.arange(8, 128, 8)),
+        'min_child_samples': hp.choice('min_child_samples', np.arange(8, 128, 8)),  # min_data_in_leaf
+        'max_bin': hp.choice('max_bin', np.arange(128, 512, 8)),
+        'subsample': hp.quniform('subsample', 0.5, 1.0, 0.1),  # bagging_fraction
+        'colsample_bytree': hp.quniform('colsample_bytree', 0.5, 1., 0.1),  # feature_fraction
+        'reg_alpha': hp.quniform('reg_alpha', 0, 1., 0.1),
+        'reg_lambda': hp.quniform('reg_lambda', 0, 1., 0.1),
 
-        # Improve noise robustness
-        'l2_leaf_reg': hp.quniform('l2_leaf_reg', 0, 1.0, 0.1),
+        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
+        'boosting_type': hp.choice('boosting_type', ['gbdt', 'dart']),
 
         # fixed
-        'iterations': 50000,
-        'eval_metric': 'RMSE',
-        'loss_function': 'RMSE',
-        'od_wait': 50,
-        'thread_count': 8,
-        'logging_level': 'Silent',
-        'random_seed': 0,
-        'od_type': 'Iter'
+        'n_estimators': 1000,
+        'random_state': 0,
+        'n_jobs': 8,
+        'silent': False,
+        'application': 'regression_l2'
     }
 
-    max_evals = 400
+    max_evals = 300
 
     trials_fe = Trials()
     loss_fe = partial(loss, X_train=X_train_fe, y_train=y_fe_train, cv=cv)
@@ -102,10 +106,10 @@ if __name__ == '__main__':
     best_params_fe = space_eval(space, best_fe)
     best_loss_fe = loss_fe(best_params_fe)['loss']
 
-    logger.info('argmin RMSE: {}'.format(best_params_fe))
+    logger.info('argmin RMSE: {}'.format(best_fe))
     logger.info('minimum RMSE: {}'.format(best_loss_fe))
 
-    model_fe = CatBoostRegressor(**best_params_fe)
+    model_fe = lgb.LGBMRegressor(**best_params_fe)
     model_fe.fit(X_train_fe, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
@@ -116,10 +120,10 @@ if __name__ == '__main__':
     best_params_bg = space_eval(space, best_bg)
     best_loss_bg = loss_bg(best_params_bg)['loss']
 
-    logger.info('argmin RMSE: {}'.format(best_params_bg))
+    logger.info('argmin RMSE: {}'.format(best_bg))
     logger.info('minimum RMSE: {}'.format(best_loss_bg))
 
-    model_bg = CatBoostRegressor(**best_params_bg)
+    model_bg = lgb.LGBMRegressor(**best_params_bg)
     model_bg.fit(X_train_bg, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
@@ -133,6 +137,10 @@ if __name__ == '__main__':
 
     logger.info('test data load end {}'.format(X_test_fe.shape))
 
+    logger.info('argmin RMSE: {}'.format(best_params_fe))
+    logger.info('minimum RMSE: {}'.format(best_loss_fe))
+    logger.info('argmin RMSE: {}'.format(best_params_bg))
+    logger.info('minimum RMSE: {}'.format(best_loss_bg))
     logger.info('estimated RMSE: {}'.format((best_loss_fe + best_loss_bg) / 2))
 
     y_fe_pred_test = np.expm1(model_fe.predict(X_test_fe))
@@ -142,4 +150,4 @@ if __name__ == '__main__':
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
     df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit_catboost_hyperopt.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_lightgbm_hyperopt.csv', index=False)
