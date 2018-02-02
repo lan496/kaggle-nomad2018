@@ -98,7 +98,7 @@ if __name__ == '__main__':
         'application': 'regression_l2'
     }
 
-    max_evals = 300
+    max_evals = 400
 
     trials_fe = Trials()
     loss_fe = partial(loss, X_train=X_train_fe, y_train=y_fe_train, cv=cv)

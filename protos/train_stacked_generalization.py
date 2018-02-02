@@ -9,6 +9,7 @@ from sklearn.kernel_ridge import KernelRidge
 from sklearn.ensemble import RandomForestRegressor
 from catboost import CatBoostRegressor
 import xgboost as xgb
+import lightgbm as lgb
 
 from tqdm import tqdm
 
@@ -135,22 +136,23 @@ if __name__ == '__main__':
 
     logger.info('start')
 
-    df_train = load_train_data()
-    X_train = df_train.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
-    y_fe_train = np.log1p(df_train['formation_energy_ev_natom'].values)
-    y_bg_train = np.log1p(df_train['bandgap_energy_ev'].values)
+    df_train_fe = load_train_data(is_bg=False)
+    df_train_bg = load_train_data(is_bg=True)
+    X_train_fe = df_train_fe.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    X_train_bg = df_train_bg.drop(['id', 'formation_energy_ev_natom', 'bandgap_energy_ev'], axis=1)
+    y_fe_train = np.log1p(df_train_fe['formation_energy_ev_natom'].values)
+    y_bg_train = np.log1p(df_train_bg['bandgap_energy_ev'].values)
 
-    use_cols = X_train.columns.values
+    logger.info('data preparation end {}'.format(X_train_fe.shape))
 
-    logger.debug('train columns: {} {}'.format(use_cols.shape, use_cols))
+    df_test_fe = load_test_data(is_bg=False)
+    df_test_bg = load_test_data(is_bg=True)
+    X_test_fe = df_test_fe.sort_values('id')
+    X_test_bg = df_test_bg.sort_values('id')
+    X_test_fe.drop(['id'], axis=1, inplace=True)
+    X_test_bg.drop(['id'], axis=1, inplace=True)
 
-    logger.info('data preparation end {}'.format(X_train.shape))
-
-    df_test = load_test_data()
-    X_test = df_test.sort_values('id')
-    X_test.drop(['id'], axis=1, inplace=True)
-
-    logger.info('test data load end {}'.format(X_test.shape))
+    logger.info('test data load end {}'.format(X_test_fe.shape))
 
     all_params = {
         'iterations': [50000],
@@ -167,84 +169,114 @@ if __name__ == '__main__':
     }
 
     generalizers_fe = [
-        KernelRidge(alpha=0.01, gamma=0.01, kernel='laplacian'),
+        KernelRidge(alpha=0.01, gamma=0.001, kernel='laplacian'),
         RandomForestRegressor(criterion='mse',
-                              max_depth=13,
+                              max_depth=17,
                               max_features='auto',
                               min_samples_split=0.0001,
-                              n_estimators=70,
+                              n_estimators=90,
                               n_jobs=-1,
                               random_state=0),
-        xgb.XGBRegressor(colsample_bylevel=1.0,
+        xgb.XGBRegressor(colsample_bylevel=0.7,
                          colsample_bytree=0.8,
                          gamma=0.0,
-                         max_depth=2,
-                         min_child_weight=3,
-                         reg_alpha=0.1,
-                         reg_lambda=0.1,
-                         subsample=0.7,
+                         max_depth=4,
+                         min_child_weight=5,
+                         reg_alpha=0.0,
+                         reg_lambda=0.4,
+                         subsample=1.0,
                          learning_rate=0.1,
                          booster='dart',
-                         n_estimators=1000,
+                         n_estimators=369,
                          silent='True',
                          n_jobs=-1,
                          random_state=0,
                          objective='reg:linear'),
-        CatBoostRegressor(depth=9,
+        CatBoostRegressor(depth=6,
                           eval_metric='RMSE',
-                          iterations=284,
-                          l2_leaf_reg=0.9,
-                          learning_rate=0.06,
+                          iterations=650,
+                          l2_leaf_reg=1.0,
+                          learning_rate=0.1,
                           logging_level='Silent',
                           loss_function='RMSE',
                           od_type='Iter',
                           od_wait=50,
                           random_seed=0,
                           thread_count=8),
+        lgb.LGBMRegressor(application='regression_l2',
+                          boosting_type='gbdt',
+                          colsample_bytree=0.6,
+                          learning_rate=0.06,
+                          max_bin=160,
+                          max_depth=10,
+                          min_child_samples=56,
+                          n_estimators=224,
+                          n_jobs=8,
+                          num_leaves=120,
+                          random_state=0,
+                          reg_alpha=0.1,
+                          reg_lambda=0.4,
+                          silent=True,
+                          subsample=0.8),
     ]
 
     generalizers_bg = [
         KernelRidge(alpha=0.01, gamma=0.001, kernel='laplacian'),
         RandomForestRegressor(criterion='mse',
-                              max_depth=17,
+                              max_depth=13,
                               max_features='auto',
                               min_samples_split=0.0001,
-                              n_estimators=70,
+                              n_estimators=80,
                               n_jobs=-1,
                               random_state=0),
-        xgb.XGBRegressor(colsample_bylevel=1.0,
+        xgb.XGBRegressor(colsample_bylevel=0.5,
                          colsample_bytree=0.5,
                          gamma=0.0,
-                         max_depth=1,
-                         min_child_weight=3,
-                         reg_alpha=0.9,
-                         reg_lambda=0.9,
-                         subsample=0.6,
+                         max_depth=3,
+                         min_child_weight=9,
+                         reg_alpha=0.8,
+                         reg_lambda=1.0,
+                         subsample=0.8,
                          learning_rate=0.1,
                          booster='dart',
-                         n_estimators=1000,
+                         n_estimators=209,
                          silent='True',
                          n_jobs=-1,
                          random_state=0,
                          objective='reg:linear'),
         CatBoostRegressor(depth=4,
                           eval_metric='RMSE',
-                          iterations=186,
-                          l2_leaf_reg=0.3,
-                          learning_rate=0.06,
+                          iterations=266,
+                          l2_leaf_reg=0.5,
+                          learning_rate=0.1,
                           logging_level='Silent',
                           loss_function='RMSE',
                           od_type='Iter',
                           od_wait=50,
                           random_seed=0,
                           thread_count=8),
+        lgb.LGBMRegressor(application='regression_l2',
+                          boosting_type='gbdt',
+                          colsample_bytree=0.5,
+                          learning_rate=0.09,
+                          max_bin=216,
+                          max_depth=7,
+                          min_child_samples=96,
+                          n_estimators=144,
+                          n_jobs=8,
+                          num_leaves=120,
+                          random_state=0,
+                          reg_alpha=0.1,
+                          reg_lambda=0.5,
+                          silent=True,
+                          subsample=0.8),
     ]
 
-    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, generalizers_fe, X_train, y_fe_train, X_test, n_splits=5)
+    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, generalizers_fe, X_train_fe, y_fe_train, X_test_fe, n_splits=5)
 
     logger.info('formation_energy_ev_natom end')
 
-    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(all_params, generalizers_bg, X_train, y_bg_train, X_test, n_splits=5)
+    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(all_params, generalizers_bg, X_train_bg, y_bg_train, X_test_bg, n_splits=5)
 
     logger.info('bandgap_energy_ev end')
 

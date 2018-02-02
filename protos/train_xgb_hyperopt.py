@@ -61,7 +61,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train.py.log', 'a')
+    handler = FileHandler(DIR + 'train_xgb_hyperopt.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)
@@ -82,8 +82,8 @@ if __name__ == '__main__':
 
     space = {
         # Control complexity of model
-        'max_depth': hp.choice('max_depth', np.arange(1, 11, dtype=int)),
-        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
+        'max_depth': hp.choice('max_depth', np.arange(2, 11, dtype=int)),
+        'learning_rate': 0.1,
         'min_child_weight': hp.choice('min_child_weight', np.arange(1, 11, dtype=int)),
         'gamma': hp.quniform('gamma', 0, 1, 0.1),
 
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         'objective': 'reg:linear',
     }
 
-    max_evals = 400
+    max_evals = 300
     early_stopping_rounds = 50
 
     trials_fe = Trials()

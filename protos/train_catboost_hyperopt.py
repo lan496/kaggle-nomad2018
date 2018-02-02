@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     space = {
         # Control complexity of model
-        'depth': hp.choice('depth', np.arange(1, 11, dtype=int)),
+        'depth': hp.choice('depth', np.arange(2, 11, dtype=int)),
         'learning_rate': 0.1,
 
         # Improve noise robustness
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         'od_type': 'Iter'
     }
 
-    max_evals = 400
+    max_evals = 300
 
     trials_fe = Trials()
     loss_fe = partial(loss, X_train=X_train_fe, y_train=y_fe_train, cv=cv)
