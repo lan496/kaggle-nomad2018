@@ -6,6 +6,7 @@ from sklearn.model_selection import KFold, ParameterGrid
 from sklearn.metrics import mean_squared_log_error, mean_squared_error
 import xgboost as xgb
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from load_data import load_train_data, load_test_data
 
@@ -163,6 +164,11 @@ if __name__ == '__main__':
     X_test_bg.drop(['id'], axis=1, inplace=True)
 
     logger.info('estimated RMSE: {}'.format((min_score_fe + min_score_bg) / 2))
+
+    fig, (ax1, ax2) = plt.subplots(ncols=2)
+    xgb.plot_importance(clf_fe, ax=ax1)
+    xgb.plot_importance(clf_bg, ax=ax2)
+    plt.show()
 
     y_fe_pred_test = np.expm1(clf_fe.predict(X_test_fe, ntree_limit=argmin_params_fe['ntree_limit']))
     y_bg_pred_test = np.expm1(clf_bg.predict(X_test_bg, ntree_limit=argmin_params_bg['ntree_limit']))

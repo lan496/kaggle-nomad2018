@@ -1,4 +1,5 @@
 from logging import StreamHandler, DEBUG, Formatter, FileHandler, getLogger
+from functools import partial
 
 import pandas as pd
 import numpy as np
@@ -7,11 +8,13 @@ from sklearn.metrics import mean_squared_error
 
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
 from catboost import CatBoostRegressor
 import xgboost as xgb
 import lightgbm as lgb
 
 from tqdm import tqdm
+from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
 
 from load_data import load_train_data, load_test_data
 
@@ -65,7 +68,40 @@ class MetaFeatures(object):
         return pred
 
 
-def run(all_params, generalizers, X_train, y_train, X_test, n_splits=5):
+def loss(params, X_train, y_train, cv):
+    list_loss = []
+    list_best_iterations = []
+
+    for train_idx, valid_idx in cv.split(X_train, y_train):
+        trn_X = X_train.iloc[train_idx, :]
+        val_X = X_train.iloc[valid_idx, :]
+
+        trn_y = y_train[train_idx]
+        val_y = y_train[valid_idx]
+
+        model = lgb.LGBMRegressor(**params)
+        model.fit(trn_X, trn_y,
+                  eval_set=[(val_X, val_y)],
+                  eval_metric='l2',
+                  early_stopping_rounds=10,
+                  verbose=False)
+        pred = model.predict(val_X, num_iteration=model.best_iteration_)
+        loss = np.sqrt(mean_squared_error(val_y, pred))
+
+        list_loss.append(loss)
+        list_best_iterations.append(model.best_iteration_)
+        logger.debug('  RMSE: {}'.format(loss))
+
+    params['n_estimators'] = int(np.mean(list_best_iterations))
+    loss = np.mean(list_loss)
+
+    logger.debug('params: {}'.format(params))
+    logger.debug('RMSE: {}'.format(loss))
+
+    return {'loss': loss, 'status': STATUS_OK}
+
+
+def run(space, max_evals, generalizers, X_train, y_train, X_test, n_splits=5):
     mf = MetaFeatures(generalizers, n_splits)
     X_meta_train = mf.guess_metafeatures_with_partition(X_train, y_train)
     X_meta_test = mf.guess_metafeatures_with_whole(X_test)
@@ -74,51 +110,23 @@ def run(all_params, generalizers, X_train, y_train, X_test, n_splits=5):
         loss_rmse = np.sqrt(mean_squared_error(y_train, X_meta_train[:, i]))
         logger.info('   meta feature RMSE: {}'.format(loss_rmse))
 
-    min_loss = 100
-    argmin_loss = None
-
     cv = KFold(n_splits=n_splits, shuffle=True, random_state=0)
 
-    for params in tqdm(list(ParameterGrid(all_params))):
-        logger.debug('params: {}'.format(params))
+    trials = Trials()
+    loss_partial = partial(loss, X_train=X_train, y_train=y_train, cv=cv)
+    best = fmin(loss_partial, space, algo=tpe.suggest, trials=trials, max_evals=max_evals)
+    best_params = space_eval(space, best)
+    best_loss = loss_partial(best_params)['loss']
 
-        list_loss = []
-        list_best_iterations = []
+    logger.info('argmin RMSE: {}'.format(best_params))
+    logger.info('minimum RMSE: {}'.format(best_loss))
 
-        for train_idx, valid_idx in cv.split(X_meta_train, y_train):
-            trn_X = X_meta_train[train_idx, :]
-            val_X = X_meta_train[valid_idx, :]
-
-            trn_y = y_train[train_idx]
-            val_y = y_train[valid_idx]
-
-            model = CatBoostRegressor(**params)
-            model.fit(trn_X, trn_y,
-                      eval_set=(val_X, val_y),
-                      use_best_model=True)
-            pred = model.predict(val_X)
-            loss_rmse = np.sqrt(mean_squared_error(val_y, pred))
-
-            list_loss.append(loss_rmse)
-            list_best_iterations.append(model.tree_count_)
-            logger.debug('  RMSE: {}'.format(loss_rmse))
-
-        params['iterations'] = int(np.mean(list_best_iterations))
-        loss_rmse = np.mean(list_loss)
-        logger.debug('RMSE: {}'.format(loss_rmse))
-        if min_loss > loss_rmse:
-            min_loss = loss_rmse
-            argmin_loss = params
-
-    logger.info('argmin RMSE: {}'.format(argmin_loss))
-    logger.info('minimum RMSE: {}'.format(min_loss))
-
-    model = CatBoostRegressor(**argmin_loss)
+    model = lgb.LGBMRegressor(**best_params)
     model.fit(X_train, y_train)
 
     pred = model.predict(X_test)
 
-    return pred, min_loss, argmin_loss
+    return pred, best_loss, best_params
 
 
 if __name__ == '__main__':
@@ -154,19 +162,29 @@ if __name__ == '__main__':
 
     logger.info('test data load end {}'.format(X_test_fe.shape))
 
-    all_params = {
-        'iterations': [50000],
-        'eval_metric': ['RMSE'],
-        'loss_function': ['RMSE'],
-        'random_seed': [0],
-        'thread_count': [8],
-        'logging_level': ['Silent'],
-        'od_type': ['Iter'],
-        'od_wait': [50],
-        'learning_rate': [0.1],
-        'depth': [2, 4, 6, 8, 10],
-        'l2_leaf_reg': [0, 0.01, 0.1, 1.0],
+    space = {
+        # controling complexity parameters
+        'max_depth': hp.choice('max_depth', np.arange(2, 11)),
+        'num_leaves': hp.choice('num_leaves', np.arange(8, 128, 8)),
+        'min_child_samples': hp.choice('min_child_samples', np.arange(8, 128, 8)),  # min_data_in_leaf
+        'max_bin': hp.choice('max_bin', np.arange(128, 512, 8)),
+        'subsample': hp.quniform('subsample', 0.5, 1.0, 0.1),  # bagging_fraction
+        'colsample_bytree': hp.quniform('colsample_bytree', 0.5, 1., 0.1),  # feature_fraction
+        'reg_alpha': hp.quniform('reg_alpha', 0, 1., 0.1),
+        'reg_lambda': hp.quniform('reg_lambda', 0, 1., 0.1),
+
+        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
+        'boosting_type': hp.choice('boosting_type', ['gbdt', 'dart']),
+
+        # fixed
+        'n_estimators': 1000,
+        'random_state': 0,
+        'n_jobs': 8,
+        'silent': False,
+        'application': 'regression_l2'
     }
+
+    max_evals = 300
 
     generalizers_fe = [
         KernelRidge(alpha=0.01, gamma=0.001, kernel='laplacian'),
@@ -177,6 +195,12 @@ if __name__ == '__main__':
                               n_estimators=90,
                               n_jobs=-1,
                               random_state=0),
+        KNeighborsRegressor(algorithm='auto',
+                            leaf_size=5,
+                            n_jobs=-1,
+                            n_neighbors=5,
+                            p=1,
+                            weights='distance'),
         xgb.XGBRegressor(colsample_bylevel=0.7,
                          colsample_bytree=0.8,
                          gamma=0.0,
@@ -229,6 +253,12 @@ if __name__ == '__main__':
                               n_estimators=80,
                               n_jobs=-1,
                               random_state=0),
+        KNeighborsRegressor(algorithm='auto',
+                            leaf_size=30,
+                            n_jobs=-1,
+                            n_neighbors=15,
+                            p=1,
+                            weights='distance'),
         xgb.XGBRegressor(colsample_bylevel=0.5,
                          colsample_bytree=0.5,
                          gamma=0.0,
@@ -272,11 +302,11 @@ if __name__ == '__main__':
                           subsample=0.8),
     ]
 
-    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, generalizers_fe, X_train_fe, y_fe_train, X_test_fe, n_splits=5)
+    y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(space, max_evals, generalizers_fe, X_train_fe, y_fe_train, X_test_fe, n_splits=5)
 
     logger.info('formation_energy_ev_natom end')
 
-    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(all_params, generalizers_bg, X_train_bg, y_bg_train, X_test_bg, n_splits=5)
+    y_bg_pred_test, bg_min_loss, bg_argmin_loss = run(space, max_evals, generalizers_bg, X_train_bg, y_bg_train, X_test_bg, n_splits=5)
 
     logger.info('bandgap_energy_ev end')
 
