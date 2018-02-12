@@ -21,7 +21,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train.KRR.py.log', 'a')
+    handler = FileHandler(DIR + 'train_KRR.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     all_params = {
         'alpha': [10 ** i for i in range(-4, 0)],
         'kernel': ['rbf', 'laplacian'],
-        'gamma': [10 ** i for i in range(-4, 0)],
+        'gamma': [10 ** i for i in range(-6, 0)],
     }
 
     fe_gs = GridSearchCV(KernelRidge(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
@@ -84,4 +84,4 @@ if __name__ == '__main__':
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
     df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit_KKR.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_KRR.csv', index=False)

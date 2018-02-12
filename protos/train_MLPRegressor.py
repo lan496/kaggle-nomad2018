@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'hidden_layer_sizes': [(16, ), (16, 16), (16, 16, 16)],
+        'hidden_layer_sizes': [(16, 16, 16), (32, 32, 32), (64, 64, 64)],
         'activation': ['relu'],
         'solver': ['adam'],
         'alpha': [10 ** i for i in range(-5, -3)],

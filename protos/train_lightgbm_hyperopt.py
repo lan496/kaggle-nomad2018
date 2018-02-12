@@ -1,5 +1,6 @@
 from logging import StreamHandler, DEBUG, Formatter, FileHandler, getLogger
 from functools import partial
+from warnings import filterwarnings
 
 import pandas as pd
 import numpy as np
@@ -7,7 +8,7 @@ from sklearn.model_selection import KFold, ParameterGrid
 from sklearn.metrics import mean_squared_log_error, mean_squared_error
 import lightgbm as lgb
 from tqdm import tqdm
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
+from hyperopt import fmin, tpe, hp, STATUS_OK, STATUS_FAIL, Trials, space_eval
 
 from load_data import load_train_data, load_test_data
 
@@ -18,6 +19,8 @@ SAMPLE_SUBMIT_FILE = '../data/sample_submission.csv'
 
 
 def loss(params, X_train, y_train, cv):
+    filterwarnings('error')
+
     list_loss = []
     list_best_iterations = []
 
@@ -29,11 +32,16 @@ def loss(params, X_train, y_train, cv):
         val_y = y_train[valid_idx]
 
         model = lgb.LGBMRegressor(**params)
-        model.fit(trn_X, trn_y,
-                  eval_set=[(val_X, val_y)],
-                  eval_metric='l2',
-                  early_stopping_rounds=10,
-                  verbose=False)
+
+        try:
+            model.fit(trn_X, trn_y,
+                      eval_set=[(val_X, val_y)],
+                      eval_metric='l2',
+                      early_stopping_rounds=10,
+                      verbose=False)
+        except:
+            return {'loss': 100, 'status': STATUS_FAIL}
+
         pred = model.predict(val_X, num_iteration=model.best_iteration_)
         loss = np.sqrt(mean_squared_error(val_y, pred))
 
@@ -79,12 +87,12 @@ if __name__ == '__main__':
     space = {
         # controling complexity parameters
         'max_depth': hp.choice('max_depth', np.arange(2, 11)),
-        'num_leaves': hp.choice('num_leaves', np.arange(8, 128, 8)),
-        'min_child_samples': hp.choice('min_child_samples', np.arange(8, 128, 8)),  # min_data_in_leaf
+        'num_leaves': hp.choice('num_leaves', np.arange(2, 64, 2)),
+        'min_child_samples': hp.choice('min_child_samples', np.arange(4, 64, 4)),  # min_data_in_leaf
         'max_bin': hp.choice('max_bin', np.arange(128, 512, 8)),
         'subsample': hp.quniform('subsample', 0.5, 1.0, 0.1),  # bagging_fraction
         'colsample_bytree': hp.quniform('colsample_bytree', 0.5, 1., 0.1),  # feature_fraction
-        'reg_alpha': hp.quniform('reg_alpha', 0, 1., 0.1),
+        'reg_alpha': hp.qloguniform('reg_alpha', -5, 0, 1),
         'reg_lambda': hp.quniform('reg_lambda', 0, 1., 0.1),
 
         'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
@@ -94,11 +102,11 @@ if __name__ == '__main__':
         'n_estimators': 1000,
         'random_state': 0,
         'n_jobs': 8,
-        'silent': False,
-        'application': 'regression_l2'
+        'silent': True,
+        # 'application': 'regression_l2'
     }
 
-    max_evals = 400
+    max_evals = 200
 
     trials_fe = Trials()
     loss_fe = partial(loss, X_train=X_train_fe, y_train=y_fe_train, cv=cv)

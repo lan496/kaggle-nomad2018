@@ -34,8 +34,11 @@ TEST_FINGER_DATA = '../data/fp_df.test'
 TRAIN_MOMENT_DATA = '../data/fp_moment_df.train'
 TEST_MOMENT_DATA = '../data/fp_moment_df.test'
 
-TRAIN_GRDF_DATA = '../data/grdf_df.train'
-TEST_GRDF_DATA = '../data/grdf_df.test'
+TRAIN_GRDF_DATA = '../data/grdf_eta_df.train'
+TEST_GRDF_DATA = '../data/grdf_eta_df.test'
+
+TRAIN_ADF_DATA = '../data/ADF_eta_df.train'
+TEST_ADF_DATA = '../data/ADF_eta_df.test'
 
 
 logger = getLogger(__name__)
@@ -80,7 +83,7 @@ def calc_elements_ave(df, df_elements):
 
 
 def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, ehist_path,
-             finger_path, moment_path, grdf_path,
+             finger_path, moment_path, grdf_path, adf_path,
              is_bg=False, is_nn=False):
     logger.debug('enter')
     df = pd.read_csv(path)
@@ -131,13 +134,14 @@ def read_csv(path, additional_path, CN_path, angle_path, tri_path, total_path, e
 
         df_moment = joblib.load(moment_path)
 
-        # df_elements = joblib.load('../data/elements_property.joblib')
-        # df_ele_ave = calc_elements_ave(df, df_elements)
+        df_grdf = joblib.load(grdf_path)
+
+        df_adf = joblib.load(adf_path)
 
         common_dataframs = [df, spacegroup, total_atoms, df_oxygen_ave,
                             df_CN, df_angle, ]
         if is_bg:
-            df2 = pd.concat([*common_dataframs, df_tri, df_ehist], axis=1)
+            df2 = pd.concat([*common_dataframs, df_tri, df_ehist, df_grdf, df_adf], axis=1)
         else:
             df2 = pd.concat([*common_dataframs, df_fp, df_moment], axis=1)
 
@@ -160,6 +164,7 @@ def load_train_data(is_bg=False, is_nn=False):
                   TRAIN_FINGER_DATA,
                   TRAIN_MOMENT_DATA,
                   TRAIN_GRDF_DATA,
+                  TRAIN_ADF_DATA,
                   is_bg,
                   is_nn)
 
@@ -185,6 +190,7 @@ def load_test_data(is_bg=False, is_nn=False):
                   TEST_FINGER_DATA,
                   TEST_MOMENT_DATA,
                   TEST_GRDF_DATA,
+                  TEST_ADF_DATA,
                   is_bg,
                   is_nn)
     logger.debug('exit')

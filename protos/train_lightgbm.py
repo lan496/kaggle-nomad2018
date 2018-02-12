@@ -108,13 +108,13 @@ if __name__ == '__main__':
         # controling complexity parameters
         'max_depth': [-1],
         'num_leaves': [2 ** i for i in range(2, 11)],
-        'min_child_samples': [1],
+        'min_child_samples': [32],
         'max_bin': [255],
 
         'learning_rate': [0.01, 0.1],
         'boosting_type': ['gbdt', 'dart'],
     }
-    all_params = {'random_state': [0]}
+    # all_params = {'random_state': [0]}
 
     y_fe_pred_test, fe_min_loss, fe_argmin_loss = run(all_params, X_train_fe, y_fe_train, X_test_fe, n_splits=5)
 

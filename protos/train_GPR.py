@@ -2,7 +2,7 @@ from logging import StreamHandler, DEBUG, Formatter, FileHandler, getLogger
 
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
@@ -21,7 +21,7 @@ if __name__ == '__main__':
     handler.setFormatter(log_fmt)
     logger.addHandler(handler)
 
-    handler = FileHandler(DIR + 'train_RF.py.log', 'a')
+    handler = FileHandler(DIR + 'train_GPR.py.log', 'a')
     handler.setLevel(DEBUG)
     handler.setFormatter(log_fmt)
     logger.setLevel(DEBUG)
@@ -40,25 +40,25 @@ if __name__ == '__main__':
 
     cv = KFold(n_splits=5, shuffle=True, random_state=0)
     all_params = {
-        'n_estimators': [80, 100, 120, 140, 160],
-        'criterion': ['mse'],
-        'max_features': ['auto'],
-        'max_depth': [7, 9, 11, 13, 15, 17],
-        'min_samples_split': [10 ** i for i in range(-8, -2)],
-        'n_jobs': [-1],
-        'random_state': [0]
+        'kernel': [None],
+        'alpha': [10 ** i for i in range(-16, 0)],
+        'optimizer': ['fmin_l_bfgs_b'],
+        'n_restarts_optimizer': [0, 1, 2, 4, 8],
+        'normalize_y': [True, False],
+        'copy_X_train': [True],
+        'random_state': [0],
     }
 
-    fe_gs = GridSearchCV(RandomForestRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
+    fe_gs = GridSearchCV(GaussianProcessRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
     fe_gs.fit(X_train_fe, y_fe_train)
-    clf_fe = RandomForestRegressor(**fe_gs.best_params_)
+    clf_fe = GaussianProcessRegressor(**fe_gs.best_params_)
     clf_fe.fit(X_train_fe, y_fe_train)
 
     logger.info('formation_energy_ev_natom train end')
 
-    bg_gs = GridSearchCV(RandomForestRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
+    bg_gs = GridSearchCV(GaussianProcessRegressor(), all_params, scoring='neg_mean_squared_error', n_jobs=-1, cv=5, verbose=1)
     bg_gs.fit(X_train_bg, y_bg_train)
-    clf_bg = RandomForestRegressor(**bg_gs.best_params_)
+    clf_bg = GaussianProcessRegressor(**bg_gs.best_params_)
     clf_bg.fit(X_train_bg, y_bg_train)
 
     logger.info('bandgap_energy_ev train end')
@@ -88,4 +88,4 @@ if __name__ == '__main__':
     df_submit['formation_energy_ev_natom'] = np.maximum(0, y_fe_pred_test)
     df_submit['bandgap_energy_ev'] = np.maximum(0, y_bg_pred_test)
 
-    df_submit.to_csv(DIR + 'submit_RF.csv', index=False)
+    df_submit.to_csv(DIR + 'submit_GPR.csv', index=False)

@@ -127,6 +127,10 @@ def run(space, max_evals, generalizers, X_train, y_train, X_test, n_splits=5):
 
     pred = model.predict(X_meta_test)
 
+    importances = model.feature_importances_
+    logger.info('Feature Importances: {}'.format(importances))
+    logger.info('n_features: {}'.format(model.n_features_))
+
     return pred, best_loss, best_params
 
 
@@ -185,7 +189,8 @@ if __name__ == '__main__':
         'application': 'regression_l2'
     }
 
-    max_evals = 300
+    # max_evals = 300
+    max_evals = 1
 
     generalizers_fe = [
         KernelRidge(alpha=0.01, gamma=0.001, kernel='laplacian'),

@@ -83,9 +83,10 @@ if __name__ == '__main__':
     space = {
         # Control complexity of model
         'max_depth': hp.choice('max_depth', np.arange(2, 11, dtype=int)),
-        'learning_rate': 0.1,
+        'learning_rate': hp.quniform('learning_rate', 0.05, 0.1, 0.01),
         'min_child_weight': hp.choice('min_child_weight', np.arange(1, 11, dtype=int)),
         'gamma': hp.quniform('gamma', 0, 1, 0.1),
+        'gamma': hp.qloguniform('gamma', -10, 0, 1),
 
         # Improve noise robustness
         'subsample': hp.quniform('subsample', 0.5, 1, 0.1),
@@ -105,7 +106,7 @@ if __name__ == '__main__':
         'objective': 'reg:linear',
     }
 
-    max_evals = 300
+    max_evals = 500
     early_stopping_rounds = 50
 
     trials_fe = Trials()

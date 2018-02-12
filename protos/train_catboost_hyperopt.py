@@ -84,7 +84,7 @@ if __name__ == '__main__':
         'l2_leaf_reg': hp.quniform('l2_leaf_reg', 0, 1.0, 0.1),
 
         # fixed
-        'iterations': 50000,
+        'iterations': 1000,
         'eval_metric': 'RMSE',
         'loss_function': 'RMSE',
         'od_wait': 50,

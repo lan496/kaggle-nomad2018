@@ -5,7 +5,8 @@ import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 files = [
     'result_tmp/submit_catboost_hyperopt.csv',
     'result_tmp/submit_xgb_hyperopt.csv',
-    'result_tmp/submit_lightgbm_hyperopt.csv'
+    'result_tmp/submit_lightgbm_hyperopt.csv',
+    'result_tmp/submit_KRR.csv'
 ]
 
 # Load submissions

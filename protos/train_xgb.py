@@ -66,6 +66,8 @@ if __name__ == '__main__':
     min_score_fe = 100
     argmin_params_fe = None
 
+    list_fe_score = []
+
     for params in tqdm(list(ParameterGrid(all_params))):
         logger.debug('params: {}'.format(params))
 
@@ -101,6 +103,8 @@ if __name__ == '__main__':
             min_score_fe = sc_rmse
             argmin_params_fe = params
 
+        list_fe_score = list_fe_rmse
+
     clf_fe = xgb.XGBRegressor(**argmin_params_fe)
     clf_fe.fit(X_train_fe, y_fe_train)
 
@@ -108,6 +112,8 @@ if __name__ == '__main__':
 
     min_score_bg = 100
     argmin_params_bg = None
+
+    list_bg_score = []
 
     for params in tqdm(list(ParameterGrid(all_params))):
         logger.debug('params: {}'.format(params))
@@ -146,6 +152,8 @@ if __name__ == '__main__':
             min_score_bg = sc_rmse
             argmin_params_bg = params
 
+        list_bg_score = list_bg_rmse
+
     logger.info('argmin fe RMSE: {}'.format(argmin_params_fe))
     logger.info('minimum fe RMSE: {}'.format(min_score_fe))
     logger.info('argmin bg RMSE: {}'.format(argmin_params_bg))
@@ -164,6 +172,9 @@ if __name__ == '__main__':
     X_test_bg.drop(['id'], axis=1, inplace=True)
 
     logger.info('estimated RMSE: {}'.format((min_score_fe + min_score_bg) / 2))
+
+    list_score = np.mean([list_fe_score, list_bg_score], axis=0)
+    print(np.std(list_score))
 
     fig, (ax1, ax2) = plt.subplots(ncols=2)
     xgb.plot_importance(clf_fe, ax=ax1)
